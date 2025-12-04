@@ -84,7 +84,11 @@ const App: React.FC = () => {
         if (Array.isArray(parsed) && parsed.length > 0) {
           const restored = parsed.map((p: any) => ({
             ...p,
-            startDate: new Date(p.startDate)
+            startDate: new Date(p.startDate),
+            tasks: (p.tasks || []).map((t: any) => ({
+                ...t,
+                constraintDate: t.constraintDate ? new Date(t.constraintDate) : undefined
+            }))
           }));
           setProjects(restored);
         } else {
@@ -428,7 +432,14 @@ const App: React.FC = () => {
     if (!activeProject) return;
     const rawTask = activeProject.tasks.find(t => t.id === task.id);
     if (rawTask) {
-        setEditingTask(rawTask);
+        // Pass the scheduled start date as the default constraint if none exists
+        const taskWithDate = {
+            ...rawTask,
+            // We pass the scheduled start date from the 'task' param (which is ScheduledTask)
+            // so the modal can populate the date picker even if constraintDate is undefined
+            _scheduledStartDate: task.startDate 
+        };
+        setEditingTask(taskWithDate);
         setTargetWpId(rawTask.workPackageId);
         setIsTaskModalOpen(true);
     }
@@ -455,7 +466,8 @@ const App: React.FC = () => {
           name: taskData.name || 'New Task',
           duration: taskData.duration || 1,
           dependencies: taskData.dependencies || [],
-          workPackageId: targetWpId
+          workPackageId: targetWpId,
+          constraintDate: taskData.constraintDate
         };
         newTasks.push(newTask);
       }
@@ -740,7 +752,15 @@ const App: React.FC = () => {
         )}
       </main>
 
-      <TaskFormModal isOpen={isTaskModalOpen} onClose={() => setIsTaskModalOpen(false)} onSave={handleSaveTask} initialTask={editingTask} allTasks={activeProject?.tasks || []} workPackageId={targetWpId} />
+      <TaskFormModal 
+        isOpen={isTaskModalOpen} 
+        onClose={() => setIsTaskModalOpen(false)} 
+        onSave={handleSaveTask} 
+        initialTask={editingTask} 
+        allTasks={activeProject?.tasks || []} 
+        workPackageId={targetWpId} 
+        projectStartDate={stats.startDate} // Pass project start for date calcs
+      />
       <WorkPackageModal isOpen={isWPModalOpen} onClose={() => setIsWPModalOpen(false)} onSave={handleSaveWP} />
       <ProjectModal isOpen={isProjectModalOpen} onClose={() => setIsProjectModalOpen(false)} onSave={handleSaveProject} initialData={editingProject} />
       <ConfirmDialog isOpen={!!projectToDeleteId} title="Delete Project?" message="This action cannot be undone. The project and all its tasks will be permanently removed." onConfirm={confirmDeleteProject} onCancel={() => setProjectToDeleteId(null)} isDangerous={true} confirmText="Delete Project" />

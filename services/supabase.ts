@@ -36,9 +36,11 @@ export const fetchCloudProjects = async (): Promise<ProjectData[]> => {
     return {
         ...project,
         startDate: new Date(project.startDate),
-        // Ensure nested dates in scheduled items are restored if needed
         workPackages: project.workPackages || [],
-        tasks: (project.tasks || []).map((t: any) => ({ ...t }))
+        tasks: (project.tasks || []).map((t: any) => ({ 
+          ...t,
+          constraintDate: t.constraintDate ? new Date(t.constraintDate) : undefined
+        }))
     };
   });
 };

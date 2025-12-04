@@ -49,6 +49,16 @@ export const calculateSchedule = (
       const st = scheduledTaskMap.get(task.id)!;
       let newES = 0;
 
+      // Check for Manual Constraint (Start No Earlier Than)
+      if (task.constraintDate) {
+        const diffTime = task.constraintDate.getTime() - projectStartDate.getTime();
+        // Convert ms to days (rounding up to ensure we don't start before the day)
+        const constraintDay = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        if (constraintDay > newES) {
+            newES = constraintDay;
+        }
+      }
+
       // Calculate implied Start based on all dependencies (Predecessors)
       task.dependencies.forEach((dep) => {
         const pred = scheduledTaskMap.get(dep.sourceId);

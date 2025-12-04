@@ -11,6 +11,7 @@ export interface Task {
   duration: number; // in days
   dependencies: Dependency[]; 
   workPackageId: string;
+  constraintDate?: Date; // Manually selected start date (Start No Earlier Than)
 }
 
 export interface WorkPackage {
