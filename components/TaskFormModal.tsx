@@ -224,13 +224,13 @@ const TaskFormModal: React.FC<Props> = ({ isOpen, onClose, onSave, initialTask, 
                    const taskName = allTasks.find(t => t.id === dep.sourceId)?.name || 'Unknown';
                    return (
                        <div key={dep.sourceId} className="flex items-center justify-between bg-slate-50 p-2 rounded border border-slate-200 text-sm">
-                           <div className="flex items-center gap-2">
-                               <span className="font-medium text-slate-700">{taskName}</span>
-                               <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-mono">
+                           <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+                               <span className="font-medium text-slate-700 truncate">{taskName}</span>
+                               <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-mono shrink-0">
                                    {dep.type}
                                </span>
                            </div>
-                           <button type="button" onClick={() => removeDependency(dep.sourceId)} className="text-slate-400 hover:text-red-500">
+                           <button type="button" onClick={() => removeDependency(dep.sourceId)} className="text-slate-400 hover:text-red-500 shrink-0">
                                <Trash2 size={14} />
                            </button>
                        </div>
@@ -241,11 +241,11 @@ const TaskFormModal: React.FC<Props> = ({ isOpen, onClose, onSave, initialTask, 
                )}
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 w-full max-w-full">
                 <select 
                     value={newDepId} 
                     onChange={e => setNewDepId(e.target.value)}
-                    className="flex-1 text-sm border border-slate-300 rounded-lg px-2 py-1.5 outline-none focus:border-blue-500"
+                    className="flex-1 w-0 min-w-0 text-sm border border-slate-300 rounded-lg px-2 py-1.5 outline-none focus:border-blue-500 truncate"
                 >
                     <option value="">Select Task to depend on...</option>
                     {availableTasks.map(t => (
@@ -255,7 +255,7 @@ const TaskFormModal: React.FC<Props> = ({ isOpen, onClose, onSave, initialTask, 
                 <select 
                     value={newDepType} 
                     onChange={e => setNewDepType(e.target.value as DependencyType)}
-                    className="w-20 text-sm border border-slate-300 rounded-lg px-2 py-1.5 outline-none focus:border-blue-500"
+                    className="w-20 text-sm border border-slate-300 rounded-lg px-2 py-1.5 outline-none focus:border-blue-500 shrink-0"
                 >
                     <option value="FS">FS</option>
                     <option value="SS">SS</option>
@@ -266,7 +266,7 @@ const TaskFormModal: React.FC<Props> = ({ isOpen, onClose, onSave, initialTask, 
                     type="button" 
                     onClick={addDependency}
                     disabled={!newDepId}
-                    className="bg-blue-100 text-blue-700 p-2 rounded-lg hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="bg-blue-100 text-blue-700 p-2 rounded-lg hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
                 >
                     <Plus size={16} />
                 </button>
