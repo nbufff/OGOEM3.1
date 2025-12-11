@@ -56,6 +56,14 @@ function getWeekNumber(d: Date): number {
     return Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 }
 
+// Helper to format date range
+const formatDateRange = (start: Date, end: Date) => {
+    if (!start || !end) return '';
+    const s = start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const e = end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return `${s} - ${e}`;
+};
+
 const GanttChart: React.FC<Props> = ({ 
     tasks, 
     wps, 
@@ -369,6 +377,8 @@ const GanttChart: React.FC<Props> = ({
                     const barLeft = startDay * currentView.pxPerDay;
                     const barWidth = Math.max(duration * currentView.pxPerDay, 2);
 
+                    const dateRange = formatDateRange(data.startDate, data.endDate);
+
                     return (
                         <div 
                             key={`${row.type}-${row.id}`} 
@@ -415,7 +425,7 @@ const GanttChart: React.FC<Props> = ({
                                             }
                                         `}
                                         style={{ left: barLeft, width: barWidth }}
-                                        title={`${data.name}: ${duration} days`}
+                                        title={`${data.name}\nDuration: ${duration} days\n${dateRange}`}
                                     >
                                         {/* Show duration label if width allows */}
                                         {barWidth > 20 && (
