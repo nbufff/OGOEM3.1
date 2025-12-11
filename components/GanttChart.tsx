@@ -1,15 +1,20 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { ScheduledTask, ScheduledWorkPackage } from '../types';
-import { ChevronRight, ChevronDown, Package, LayoutList, AlertCircle, CalendarDays, CalendarRange, Calendar } from 'lucide-react';
+import { ChevronRight, ChevronDown, Package, LayoutList, AlertCircle } from 'lucide-react';
+
+export type GanttTimeScale = 'Day' | 'Week' | 'Month';
 
 interface Props {
   tasks: ScheduledTask[];
   wps: ScheduledWorkPackage[];
   projectDuration: number;
   projectStartDate: Date;
+  // Controlled State Props
+  viewMode: GanttTimeScale;
+  onViewModeChange: (mode: GanttTimeScale) => void;
+  expandedWPIds: Set<string>;
+  onToggleWP: (wpId: string) => void;
 }
-
-type ViewMode = 'Day' | 'Week' | 'Month';
 
 interface ViewConfig {
   pxPerDay: number;
@@ -18,10 +23,10 @@ interface ViewConfig {
   stepDays: number; // Approximate step for generating ticks
 }
 
-const HEADER_HEIGHT = 60; // Increased to fit controls and date
+const HEADER_HEIGHT = 60; 
 const ROW_HEIGHT = 44;
 
-const VIEW_SETTINGS: Record<ViewMode, ViewConfig> = {
+const VIEW_SETTINGS: Record<GanttTimeScale, ViewConfig> = {
   Day: {
     pxPerDay: 40,
     tickLabel: (date) => date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
@@ -51,12 +56,18 @@ function getWeekNumber(d: Date): number {
     return Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 }
 
-const GanttChart: React.FC<Props> = ({ tasks, wps, projectDuration, projectStartDate }) => {
-  const [viewMode, setViewMode] = useState<ViewMode>('Day');
-  const [expandedWPIds, setExpandedWPIds] = useState<Set<string>>(new Set());
-  
+const GanttChart: React.FC<Props> = ({ 
+    tasks, 
+    wps, 
+    projectDuration, 
+    projectStartDate,
+    viewMode,
+    onViewModeChange,
+    expandedWPIds,
+    onToggleWP
+}) => {
   // Responsive Left Column Width
-  const [leftColWidth, setLeftColWidth] = useState(280);
+  const [leftColWidth, setLeftColWidth] = React.useState(280);
 
   useEffect(() => {
     const handleResize = () => {
@@ -68,16 +79,6 @@ const GanttChart: React.FC<Props> = ({ tasks, wps, projectDuration, projectStart
   }, []);
 
   const currentView = VIEW_SETTINGS[viewMode];
-
-  const toggleWP = (wpId: string) => {
-    const newSet = new Set(expandedWPIds);
-    if (newSet.has(wpId)) {
-      newSet.delete(wpId);
-    } else {
-      newSet.add(wpId);
-    }
-    setExpandedWPIds(newSet);
-  };
 
   // Build the flat list of rows based on expansion state
   const visibleRows = useMemo(() => {
@@ -269,10 +270,10 @@ const GanttChart: React.FC<Props> = ({ tasks, wps, projectDuration, projectStart
                         style={{ width: leftColWidth }}
                     >
                          <div className="flex bg-slate-200/50 p-1 rounded-lg self-start max-w-full overflow-x-auto scrollbar-hide">
-                             {(['Day', 'Week', 'Month'] as ViewMode[]).map((mode) => (
+                             {(['Day', 'Week', 'Month'] as GanttTimeScale[]).map((mode) => (
                                  <button
                                      key={mode}
-                                     onClick={() => setViewMode(mode)}
+                                     onClick={() => onViewModeChange(mode)}
                                      className={`px-2 md:px-3 py-1 text-[10px] md:text-xs font-semibold rounded-md transition-all ${
                                          viewMode === mode 
                                          ? 'bg-white text-blue-600 shadow-sm' 
@@ -381,7 +382,7 @@ const GanttChart: React.FC<Props> = ({ tasks, wps, projectDuration, projectStart
                             >
                                 {isWP ? (
                                     <button 
-                                        onClick={() => toggleWP(row.id)}
+                                        onClick={() => onToggleWP(row.id)}
                                         className="flex items-center gap-2 text-slate-700 font-semibold text-sm hover:text-blue-600 focus:outline-none w-full text-left"
                                     >
                                         <div title="Toggle tasks" className="shrink-0">

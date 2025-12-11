@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { WorkPackage, Task, ProjectData, ViewMode, ScheduledTask } from './types';
 import { calculateSchedule } from './utils/scheduler';
 import WorkPackageCard from './components/WorkPackageCard';
-import GanttChart from './components/GanttChart';
+import GanttChart, { GanttTimeScale } from './components/GanttChart';
 import TaskFormModal from './components/TaskFormModal';
 import WorkPackageModal from './components/WorkPackageModal';
 import ProjectModal from './components/ProjectModal';
@@ -45,6 +45,39 @@ const App: React.FC = () => {
   const [activeProjectId, setActiveProjectId] = useState<string>(() => {
     return localStorage.getItem('og-odm-active-project') || '';
   });
+
+  // --- Gantt Chart Persistence ---
+  const [ganttTimeScale, setGanttTimeScale] = useState<GanttTimeScale>(() => {
+    const saved = localStorage.getItem('og-odm-gantt-scale');
+    return (saved as GanttTimeScale) || 'Day';
+  });
+
+  const [ganttExpandedWPIds, setGanttExpandedWPIds] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem('og-odm-gantt-expanded');
+    if (saved) {
+        try {
+            return new Set(JSON.parse(saved));
+        } catch { return new Set(); }
+    }
+    return new Set();
+  });
+
+  // Save Gantt Settings Handlers
+  const handleGanttScaleChange = (mode: GanttTimeScale) => {
+    setGanttTimeScale(mode);
+    localStorage.setItem('og-odm-gantt-scale', mode);
+  };
+
+  const handleToggleGanttWP = (wpId: string) => {
+    const newSet = new Set(ganttExpandedWPIds);
+    if (newSet.has(wpId)) {
+        newSet.delete(wpId);
+    } else {
+        newSet.add(wpId);
+    }
+    setGanttExpandedWPIds(newSet);
+    localStorage.setItem('og-odm-gantt-expanded', JSON.stringify(Array.from(newSet)));
+  };
 
   // --- Initialization Effect ---
   useEffect(() => {
@@ -775,7 +808,16 @@ const App: React.FC = () => {
                  </div>
                ) : (
                  <div className="h-full p-2 md:p-6 overflow-hidden">
-                    <GanttChart tasks={scheduledTasks} wps={scheduledWPs} projectDuration={stats.duration} projectStartDate={stats.startDate} />
+                    <GanttChart 
+                        tasks={scheduledTasks} 
+                        wps={scheduledWPs} 
+                        projectDuration={stats.duration} 
+                        projectStartDate={stats.startDate}
+                        viewMode={ganttTimeScale}
+                        onViewModeChange={handleGanttScaleChange}
+                        expandedWPIds={ganttExpandedWPIds}
+                        onToggleWP={handleToggleGanttWP}
+                    />
                  </div>
                )}
             </div>
