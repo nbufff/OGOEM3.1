@@ -195,7 +195,22 @@ const App: React.FC = () => {
     const [y, m, d] = e.target.value.split('-').map(Number);
     const newStart = new Date(y, m - 1, d);
     
-    const updated = { ...activeProject, startDate: newStart };
+    // Calculate shift delta (difference in ms)
+    const oldStart = new Date(activeProject.startDate);
+    const deltaMs = newStart.getTime() - oldStart.getTime();
+
+    // Shift all task constraints by the same delta to preserve relative structure/duration
+    const updatedTasks = activeProject.tasks.map(t => {
+      if (t.constraintDate) {
+        return {
+          ...t,
+          constraintDate: new Date(t.constraintDate.getTime() + deltaMs)
+        };
+      }
+      return t;
+    });
+
+    const updated = { ...activeProject, startDate: newStart, tasks: updatedTasks };
     const updatedList = projects.map(p => p.id === activeProject.id ? updated : p);
     saveProjectsToSource(updatedList, updated);
   };
@@ -206,10 +221,26 @@ const App: React.FC = () => {
     const newEnd = new Date(y, m - 1, d);
     
     const durationInDays = stats.duration;
+    // Calculate new start date based on desired end date and current duration
     const newStart = new Date(newEnd);
     newStart.setDate(newStart.getDate() - durationInDays);
 
-    const updated = { ...activeProject, startDate: newStart };
+    // Calculate shift delta
+    const oldStart = new Date(activeProject.startDate);
+    const deltaMs = newStart.getTime() - oldStart.getTime();
+
+    // Shift all task constraints
+    const updatedTasks = activeProject.tasks.map(t => {
+      if (t.constraintDate) {
+        return {
+          ...t,
+          constraintDate: new Date(t.constraintDate.getTime() + deltaMs)
+        };
+      }
+      return t;
+    });
+
+    const updated = { ...activeProject, startDate: newStart, tasks: updatedTasks };
     const updatedList = projects.map(p => p.id === activeProject.id ? updated : p);
     saveProjectsToSource(updatedList, updated);
   };
