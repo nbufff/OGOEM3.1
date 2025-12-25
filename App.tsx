@@ -8,9 +8,10 @@ import WorkPackageModal from './components/WorkPackageModal';
 import ProjectModal from './components/ProjectModal';
 import ConfirmDialog from './components/ConfirmDialog';
 import CloudConnectModal from './components/CloudConnectModal';
-import { Plus, LayoutGrid, CalendarClock, Folder, Trash2, Box, Layers, Edit2, Download, Upload, Menu, PanelLeftClose, PanelLeftOpen, CloudOff, Cloud } from 'lucide-react';
+import { Plus, LayoutGrid, CalendarClock, Folder, Trash2, Box, Layers, Edit2, Download, Upload, Menu, PanelLeftClose, PanelLeftOpen, CloudOff, Cloud, FileText } from 'lucide-react';
 import { MOCK_PROJECT } from './constants';
 import { initSupabase, fetchCloudProjects, saveCloudProject, deleteCloudProject } from './services/supabase';
+import { exportToPdf } from './services/pdfExport';
 
 const toInputDate = (date: Date) => {
   const y = date.getFullYear();
@@ -368,6 +369,14 @@ const App: React.FC = () => {
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
+  };
+
+  const handleExportPdf = async () => {
+    if (!activeProject) return;
+    // Determine which container to capture based on view mode
+    // We target the inner content ID to capture full scroll width/height
+    const elementId = viewMode === ViewMode.BOARD ? 'board-content-area' : 'gantt-content-area';
+    await exportToPdf(elementId, activeProject.title);
   };
 
   const handleImportClick = () => {
@@ -748,8 +757,9 @@ const App: React.FC = () => {
                       <h1 className="text-xl md:text-2xl font-bold text-slate-800 flex items-center gap-2 truncate">
                         <span className="truncate">{activeProject.title}</span>
                         <div className="flex shrink-0">
-                            <button onClick={() => handleOpenEditProject(activeProject)} className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded-full hover:bg-slate-100"><Edit2 size={16} /></button>
-                            <button onClick={handleExportProject} className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded-full hover:bg-slate-100"><Download size={16} /></button>
+                            <button onClick={() => handleOpenEditProject(activeProject)} title="Edit Project Settings" className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded-full hover:bg-slate-100"><Edit2 size={16} /></button>
+                            <button onClick={handleExportProject} title="Export JSON" className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded-full hover:bg-slate-100"><Download size={16} /></button>
+                            <button onClick={handleExportPdf} title="Export PDF" className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded-full hover:bg-slate-100"><FileText size={16} /></button>
                         </div>
                       </h1>
                       <p className="text-slate-500 text-xs md:text-sm truncate">{activeProject.description || "No description provided."}</p>
@@ -782,7 +792,8 @@ const App: React.FC = () => {
             <div className="flex-1 overflow-hidden relative">
                {viewMode === ViewMode.BOARD ? (
                  <div className="h-full overflow-x-auto overflow-y-hidden p-4 md:p-6 snap-x snap-mandatory">
-                    <div className="flex h-full gap-4 md:gap-6 relative">
+                    {/* Added ID for Board PDF Export */}
+                    <div id="board-content-area" className="flex h-full gap-4 md:gap-6 relative">
                        {scheduledWPs.map(wp => (
                           <div key={wp.id} className="w-[85vw] md:w-80 shrink-0 h-full flex flex-col z-10 snap-center">
                              <WorkPackageCard 
@@ -799,7 +810,7 @@ const App: React.FC = () => {
                           </div>
                        ))}
                        <div className="w-[85vw] md:w-80 shrink-0 h-full snap-center pb-8 md:pb-0">
-                          <button onClick={handleAddWP} className="w-full h-full border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/50 transition-all gap-2 group min-h-[200px]">
+                          <button onClick={handleAddWP} className="w-full h-full border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/50 transition-all gap-2 group min-h-[200px] no-print">
                              <div className="p-3 bg-white rounded-full shadow-sm group-hover:shadow-md transition-shadow"><Plus size={24} /></div>
                              <span className="font-medium">Add Work Package</span>
                           </button>

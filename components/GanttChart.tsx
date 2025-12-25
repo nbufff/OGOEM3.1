@@ -265,7 +265,8 @@ const GanttChart: React.FC<Props> = ({
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-full overflow-hidden">
         <div className="flex-1 overflow-auto relative scroll-smooth">
             
-            <div style={{ width: leftColWidth + chartWidth, height: totalContentHeight }} className="relative">
+            {/* ID added here for PDF export to capture full scrollable content */}
+            <div id="gantt-content-area" style={{ width: leftColWidth + chartWidth, height: totalContentHeight }} className="relative bg-white">
                 
                 {/* --- Sticky Header Row --- */}
                 <div 
@@ -277,7 +278,7 @@ const GanttChart: React.FC<Props> = ({
                         className="sticky left-0 z-50 bg-slate-50 border-r border-slate-200 flex flex-col justify-center px-2 md:px-4"
                         style={{ width: leftColWidth }}
                     >
-                         <div className="flex bg-slate-200/50 p-1 rounded-lg self-start max-w-full overflow-x-auto scrollbar-hide">
+                         <div className="flex bg-slate-200/50 p-1 rounded-lg self-start max-w-full overflow-x-auto scrollbar-hide no-print">
                              {(['Day', 'Week', 'Month'] as GanttTimeScale[]).map((mode) => (
                                  <button
                                      key={mode}
