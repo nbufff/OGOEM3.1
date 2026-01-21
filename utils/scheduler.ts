@@ -1,4 +1,4 @@
-import { Task, WorkPackage, ScheduledTask, ScheduledWorkPackage, ProjectStats } from '../types';
+import { Task, WorkPackage, ScheduledTask, ScheduledWorkPackage, ProjectStats, DependencyType } from '../types';
 
 // Helper to add days to a date
 export const addDays = (date: Date, days: number): Date => {
@@ -20,7 +20,6 @@ export const calculateSchedule = (
   const scheduledTaskMap = new Map<string, ScheduledTask>();
 
   // 1. Initialize Scheduled Tasks with base data
-  // We initialize everything to 0 to ensure clean recalculation
   tasks.forEach((t) => {
     scheduledTaskMap.set(t.id, {
       ...t,
@@ -35,11 +34,23 @@ export const calculateSchedule = (
     });
   });
 
+  // Pre-compute Successors Map for Backward Pass efficiency
+  // Maps TaskID -> List of tasks that depend on it (and the dependency type)
+  const successorsMap = new Map<string, Array<{ id: string; type: DependencyType }>>();
+  tasks.forEach(t => {
+      t.dependencies.forEach(dep => {
+          if (!successorsMap.has(dep.sourceId)) {
+              successorsMap.set(dep.sourceId, []);
+          }
+          successorsMap.get(dep.sourceId)!.push({ id: t.id, type: dep.type });
+      });
+  });
+
   // 2. Forward Pass (Calculate Early Start & Early Finish)
   let changed = true;
   let iterations = 0;
-  // Safety break for cycles (e.g. A->B->A)
-  const MAX_ITERATIONS = tasks.length * 2 + 50; 
+  // Increase iteration limit for deep dependency chains (Safety break for cycles)
+  const MAX_ITERATIONS = tasks.length * 5 + 100; 
 
   while (changed && iterations < MAX_ITERATIONS) {
     changed = false;
@@ -124,35 +135,33 @@ export const calculateSchedule = (
       const st = scheduledTaskMap.get(task.id)!;
       let newLF = projectDuration;
 
-      // Check all tasks that depend on this task (Successors) to constrain LF
-      tasks.forEach((successor) => {
-        successor.dependencies.forEach((dep) => {
-          if (dep.sourceId === task.id) {
-            const succ = scheduledTaskMap.get(successor.id)!;
-            let impliedLF = projectDuration;
+      // Use pre-computed successors map for efficiency
+      const successors = successorsMap.get(task.id) || [];
 
-            switch (dep.type) {
-              case 'FS': // Succ Start >= Task Finish => Task Finish <= Succ Start
-                impliedLF = succ.lateStart;
-                break;
-              case 'SS': // Succ Start >= Task Start => Task Start <= Succ Start
-                // LS constraint propagates to LF: LF = LS + Dur <= SuccStart + Dur
-                impliedLF = succ.lateStart + task.duration;
-                break;
-              case 'FF': // Succ Finish >= Task Finish => Task Finish <= Succ Finish
-                impliedLF = succ.lateFinish;
-                break;
-              case 'SF': // Succ Finish >= Task Start => Task Start <= Succ Finish
-                // LS constraint: LS <= SuccFinish. LF = LS + Dur <= SuccFinish + Dur
-                impliedLF = succ.lateFinish + task.duration;
-                break;
-            }
+      successors.forEach((succInfo) => {
+        const succ = scheduledTaskMap.get(succInfo.id)!;
+        let impliedLF = projectDuration;
 
-            if (impliedLF < newLF) {
-              newLF = impliedLF;
-            }
-          }
-        });
+        switch (succInfo.type) {
+          case 'FS': // Succ Start >= Task Finish => Task Finish <= Succ Start
+            impliedLF = succ.lateStart;
+            break;
+          case 'SS': // Succ Start >= Task Start => Task Start <= Succ Start
+            // LS constraint propagates to LF: LF = LS + Dur <= SuccStart + Dur
+            impliedLF = succ.lateStart + task.duration;
+            break;
+          case 'FF': // Succ Finish >= Task Finish => Task Finish <= Succ Finish
+            impliedLF = succ.lateFinish;
+            break;
+          case 'SF': // Succ Finish >= Task Start => Task Start <= Succ Finish
+            // LS constraint: LS <= SuccFinish. LF = LS + Dur <= SuccFinish + Dur
+            impliedLF = succ.lateFinish + task.duration;
+            break;
+        }
+
+        if (impliedLF < newLF) {
+          newLF = impliedLF;
+        }
       });
 
       const newLS = newLF - task.duration;

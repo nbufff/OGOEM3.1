@@ -8,7 +8,7 @@ import WorkPackageModal from './components/WorkPackageModal';
 import ProjectModal from './components/ProjectModal';
 import ConfirmDialog from './components/ConfirmDialog';
 import CloudConnectModal from './components/CloudConnectModal';
-import { Plus, LayoutGrid, CalendarClock, Folder, Trash2, Box, Layers, Edit2, Download, Upload, Menu, PanelLeftClose, PanelLeftOpen, CloudOff, Cloud, FileText } from 'lucide-react';
+import { Plus, LayoutGrid, CalendarClock, Folder, Trash2, Box, Layers, Edit2, Download, Upload, Menu, PanelLeftClose, PanelLeftOpen, CloudOff, Cloud, FileText, GripVertical } from 'lucide-react';
 import { MOCK_PROJECT } from './constants';
 import { initSupabase, fetchCloudProjects, saveCloudProject, deleteCloudProject } from './services/supabase';
 import { exportToPdf } from './services/pdfExport';
@@ -46,6 +46,9 @@ const App: React.FC = () => {
   const [activeProjectId, setActiveProjectId] = useState<string>(() => {
     return localStorage.getItem('og-odm-active-project') || '';
   });
+
+  // --- Drag and Drop State ---
+  const [draggedProjectId, setDraggedProjectId] = useState<string | null>(null);
 
   // --- Gantt Chart Persistence ---
   const [ganttTimeScale, setGanttTimeScale] = useState<GanttTimeScale>(() => {
@@ -222,6 +225,46 @@ const App: React.FC = () => {
     if (!activeProject) return { scheduledTasks: [], scheduledWPs: [], stats: { duration: 0, startDate: new Date(), endDate: new Date(), criticalPathLength: 0 } };
     return calculateSchedule(activeProject.tasks, activeProject.workPackages, activeProject.startDate);
   }, [activeProject]);
+
+  // --- Drag and Drop Handlers ---
+  const handleProjectDragStart = (e: React.DragEvent, projectId: string) => {
+    setDraggedProjectId(projectId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', projectId); // Required for Firefox
+  };
+
+  const handleProjectDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleProjectDrop = (e: React.DragEvent, targetProjectId: string) => {
+    e.preventDefault();
+    if (!draggedProjectId || draggedProjectId === targetProjectId) {
+        setDraggedProjectId(null);
+        return;
+    }
+
+    const sourceIndex = projects.findIndex(p => p.id === draggedProjectId);
+    const targetIndex = projects.findIndex(p => p.id === targetProjectId);
+
+    if (sourceIndex === -1 || targetIndex === -1) {
+        setDraggedProjectId(null);
+        return;
+    }
+
+    const newProjects = [...projects];
+    const [movedProject] = newProjects.splice(sourceIndex, 1);
+    newProjects.splice(targetIndex, 0, movedProject);
+
+    setProjects(newProjects);
+    
+    if (!isCloudConnected) {
+       localStorage.setItem('og-odm-projects', JSON.stringify(newProjects));
+    }
+    
+    setDraggedProjectId(null);
+  };
 
   // --- Date Change Handlers ---
   const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -654,7 +697,20 @@ const App: React.FC = () => {
                 ) : (
                     <ul className="space-y-1">
                         {projects.map(project => (
-                            <li key={project.id} className="flex items-center gap-0.5 rounded-lg transition-colors pr-1 hover:bg-slate-50">
+                            <li 
+                                key={project.id} 
+                                draggable={renamingProjectId !== project.id}
+                                onDragStart={(e) => handleProjectDragStart(e, project.id)}
+                                onDragOver={handleProjectDragOver}
+                                onDrop={(e) => handleProjectDrop(e, project.id)}
+                                className={`flex items-center gap-0.5 rounded-lg transition-all pr-1 hover:bg-slate-50 group/item ${draggedProjectId === project.id ? 'opacity-40 border-2 border-dashed border-slate-300' : ''}`}
+                            >
+                                {renamingProjectId !== project.id && (
+                                   <div className="pl-2 pr-1 cursor-grab text-slate-300 hover:text-slate-500 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                                      <GripVertical size={14} />
+                                   </div>
+                                )}
+
                                 {renamingProjectId === project.id ? (
                                     <div className="flex-1 flex items-center gap-3 px-3 py-2.5">
                                         <Folder size={16} className="shrink-0 text-blue-600" />
