@@ -1,26 +1,24 @@
-{
-  "name": "og-odm-projectsv3.2",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "lucide-react": "^0.554.0",
-    "@google/genai": "^1.30.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "@supabase/supabase-js": "2.39.7",
-    "html2canvas": "1.4.1",
-    "jspdf": "2.5.1"
-  },
-  "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
-  }
-}
+import { ProjectData } from './types';
+
+export const COLORS = {
+  primary: '#3b82f6', // blue-500
+  critical: '#ef4444', // red-500
+  success: '#22c55e', // green-500
+  slate: '#64748b', // slate-500
+};
+
+export const MOCK_PROJECT: ProjectData = {
+  id: 'proj-1',
+  title: "New Software Launch",
+  description: "End-to-end development and deployment plan",
+  startDate: new Date(), // Today
+  workPackages: [
+    { id: 'wp-1', name: 'Planning' },
+    { id: 'wp-2', name: 'Execution' }
+  ],
+  tasks: [
+    { id: 't-1', name: 'Define Scope', duration: 2, dependencies: [], workPackageId: 'wp-1' },
+    { id: 't-2', name: 'Resource Allocation', duration: 3, dependencies: [{ sourceId: 't-1', type: 'FS' }], workPackageId: 'wp-1' },
+    { id: 't-3', name: 'Development', duration: 5, dependencies: [{ sourceId: 't-2', type: 'FS' }], workPackageId: 'wp-2' },
+  ]
+};

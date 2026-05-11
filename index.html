@@ -1,67 +1,227 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OG ODM Projects</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-      body {
-        font-family: 'Inter', sans-serif;
-        background-color: #f8fafc;
-      }
-      /* Custom scrollbar for Gantt */
-      .gantt-scroll::-webkit-scrollbar {
-        height: 8px;
-        width: 8px;
-      }
-      .gantt-scroll::-webkit-scrollbar-track {
-        background: #f1f5f9;
-      }
-      .gantt-scroll::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 4px;
-      }
-      .gantt-scroll::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8;
+import { Task, WorkPackage, ScheduledTask, ScheduledWorkPackage, ProjectStats, DependencyType } from '../types';
+
+// Helper to add days to a date
+export const addDays = (date: Date, days: number): Date => {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+};
+
+// Calculate network schedule (Forward and Backward Pass)
+export const calculateSchedule = (
+  tasks: Task[],
+  workPackages: WorkPackage[],
+  projectStartDate: Date
+): {
+  scheduledTasks: ScheduledTask[];
+  scheduledWPs: ScheduledWorkPackage[];
+  stats: ProjectStats;
+} => {
+  const scheduledTaskMap = new Map<string, ScheduledTask>();
+
+  // 1. Initialize Scheduled Tasks with base data
+  tasks.forEach((t) => {
+    scheduledTaskMap.set(t.id, {
+      ...t,
+      earlyStart: 0,
+      earlyFinish: t.duration, // Initial EF is just duration
+      lateStart: 0,
+      lateFinish: 0,
+      slack: 0,
+      isCritical: false,
+      startDate: projectStartDate,
+      endDate: addDays(projectStartDate, t.duration),
+    });
+  });
+
+  // Pre-compute Successors Map for Backward Pass efficiency
+  // Maps TaskID -> List of tasks that depend on it (and the dependency type)
+  const successorsMap = new Map<string, Array<{ id: string; type: DependencyType }>>();
+  tasks.forEach(t => {
+      t.dependencies.forEach(dep => {
+          if (!successorsMap.has(dep.sourceId)) {
+              successorsMap.set(dep.sourceId, []);
+          }
+          successorsMap.get(dep.sourceId)!.push({ id: t.id, type: dep.type });
+      });
+  });
+
+  // 2. Forward Pass (Calculate Early Start & Early Finish)
+  let changed = true;
+  let iterations = 0;
+  // Increase iteration limit for deep dependency chains (Safety break for cycles)
+  const MAX_ITERATIONS = tasks.length * 5 + 100; 
+
+  while (changed && iterations < MAX_ITERATIONS) {
+    changed = false;
+    iterations++;
+
+    tasks.forEach((task) => {
+      const st = scheduledTaskMap.get(task.id)!;
+      let newES = 0;
+
+      // Check for Manual Constraint (Start No Earlier Than)
+      if (task.constraintDate) {
+        const diffTime = task.constraintDate.getTime() - projectStartDate.getTime();
+        // Convert ms to days (rounding up to ensure we don't start before the day)
+        const constraintDay = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        if (constraintDay > newES) {
+            newES = constraintDay;
+        }
       }
 
-      /* Customize the native date picker icon color */
-      input[type="date"]::-webkit-calendar-picker-indicator {
-        cursor: pointer;
-        opacity: 0.6;
-        transition: opacity 0.2s;
-        /* Replace the default icon with a blue SVG icon matching Tailwind blue-500 (#3b82f6) */
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Cline x1='16' y1='2' x2='16' y2='6'%3E%3C/line%3E%3Cline x1='8' y1='2' x2='8' y2='6'%3E%3C/line%3E%3Cline x1='3' y1='10' x2='21' y2='10'%3E%3C/line%3E%3C/svg%3E");
-        background-position: center;
-        background-size: contain;
-        background-repeat: no-repeat;
-        width: 1.2em;
-        height: 1.2em;
+      // Calculate implied Start based on all dependencies (Predecessors)
+      task.dependencies.forEach((dep) => {
+        const pred = scheduledTaskMap.get(dep.sourceId);
+        // If predecessor doesn't exist (e.g. deleted), ignore dependency
+        if (!pred) return;
+
+        let impliedES = 0;
+        
+        switch (dep.type) {
+          case 'FS': // Finish-to-Start: Task starts after Pred finishes
+            impliedES = pred.earlyFinish;
+            break;
+          case 'SS': // Start-to-Start: Task starts after Pred starts
+            impliedES = pred.earlyStart;
+            break;
+          case 'FF': // Finish-to-Finish: Task finishes after Pred finishes => ES >= PredEF - Duration
+            impliedES = pred.earlyFinish - task.duration;
+            break;
+          case 'SF': // Start-to-Finish: Task finishes after Pred starts => ES >= PredES - Duration
+            impliedES = pred.earlyStart - task.duration;
+            break;
+        }
+        
+        if (impliedES > newES) {
+          newES = impliedES;
+        }
+      });
+
+      // Ensure non-negative start
+      newES = Math.max(0, newES);
+      const newEF = newES + task.duration;
+
+      if (st.earlyStart !== newES || st.earlyFinish !== newEF) {
+        st.earlyStart = newES;
+        st.earlyFinish = newEF;
+        changed = true;
       }
-      input[type="date"]::-webkit-calendar-picker-indicator:hover {
-        opacity: 1;
-      }
-    </style>
-  <script type="importmap">
-{
-  "imports": {
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.7",
-    "html2canvas": "https://esm.sh/html2canvas@1.4.1",
-    "jspdf": "https://esm.sh/jspdf@2.5.1"
+    });
   }
-}
-</script>
-</head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
-  </body>
-</html>
+
+  if (iterations >= MAX_ITERATIONS) {
+    console.warn("Scheduler reached max iterations. Possible circular dependency detected.");
+  }
+
+  // Project Duration is the max EF of all tasks
+  const projectDuration = Math.max(0, ...Array.from(scheduledTaskMap.values()).map((t) => t.earlyFinish));
+
+  // 3. Backward Pass (Calculate Late Start & Late Finish)
+  // Initialize LF to Project Duration for all tasks initially
+  tasks.forEach((t) => {
+    const st = scheduledTaskMap.get(t.id)!;
+    st.lateFinish = projectDuration;
+    st.lateStart = projectDuration - st.duration;
+  });
+
+  changed = true;
+  iterations = 0;
+  while (changed && iterations < MAX_ITERATIONS) {
+    changed = false;
+    iterations++;
+    
+    tasks.forEach((task) => {
+      const st = scheduledTaskMap.get(task.id)!;
+      let newLF = projectDuration;
+
+      // Use pre-computed successors map for efficiency
+      const successors = successorsMap.get(task.id) || [];
+
+      successors.forEach((succInfo) => {
+        const succ = scheduledTaskMap.get(succInfo.id)!;
+        let impliedLF = projectDuration;
+
+        switch (succInfo.type) {
+          case 'FS': // Succ Start >= Task Finish => Task Finish <= Succ Start
+            impliedLF = succ.lateStart;
+            break;
+          case 'SS': // Succ Start >= Task Start => Task Start <= Succ Start
+            // LS constraint propagates to LF: LF = LS + Dur <= SuccStart + Dur
+            impliedLF = succ.lateStart + task.duration;
+            break;
+          case 'FF': // Succ Finish >= Task Finish => Task Finish <= Succ Finish
+            impliedLF = succ.lateFinish;
+            break;
+          case 'SF': // Succ Finish >= Task Start => Task Start <= Succ Finish
+            // LS constraint: LS <= SuccFinish. LF = LS + Dur <= SuccFinish + Dur
+            impliedLF = succ.lateFinish + task.duration;
+            break;
+        }
+
+        if (impliedLF < newLF) {
+          newLF = impliedLF;
+        }
+      });
+
+      const newLS = newLF - task.duration;
+
+      if (st.lateFinish !== newLF || st.lateStart !== newLS) {
+        st.lateFinish = newLF;
+        st.lateStart = newLS;
+        changed = true;
+      }
+    });
+  }
+
+  // 4. Finalize Tasks and Calculate Critical Path
+  const finalScheduledTasks: ScheduledTask[] = [];
+  tasks.forEach((t) => {
+    const st = scheduledTaskMap.get(t.id)!;
+    st.slack = st.lateStart - st.earlyStart;
+    // Critical if slack is 0 (or very close to it)
+    st.isCritical = st.slack <= 0; 
+    
+    // Convert relative days to Date objects
+    st.startDate = addDays(projectStartDate, st.earlyStart);
+    st.endDate = addDays(projectStartDate, st.earlyFinish);
+    
+    finalScheduledTasks.push(st);
+  });
+
+  // 5. Aggregate Work Package Stats
+  // Work Package Duration = Time from the earliest task start to the latest task finish within the package.
+  const scheduledWPs: ScheduledWorkPackage[] = workPackages.map((wp) => {
+    const wpTasks = finalScheduledTasks.filter((t) => t.workPackageId === wp.id);
+    
+    if (wpTasks.length === 0) {
+      return {
+        ...wp,
+        startDate: projectStartDate,
+        endDate: projectStartDate,
+        duration: 0,
+      };
+    }
+    
+    const minStart = Math.min(...wpTasks.map(t => t.earlyStart));
+    const maxFinish = Math.max(...wpTasks.map(t => t.earlyFinish));
+    
+    return {
+      ...wp,
+      startDate: addDays(projectStartDate, minStart),
+      endDate: addDays(projectStartDate, maxFinish),
+      duration: maxFinish - minStart,
+    };
+  });
+
+  return {
+    scheduledTasks: finalScheduledTasks,
+    scheduledWPs,
+    stats: {
+      duration: projectDuration,
+      startDate: projectStartDate,
+      endDate: addDays(projectStartDate, projectDuration),
+      criticalPathLength: projectDuration
+    }
+  };
+};
